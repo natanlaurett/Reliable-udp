@@ -7,13 +7,17 @@ class DatagramFields(Enum):
     DATA = "DATA"
 
 class Flags(Enum):
-    START_CONNECTION = "00"
-    CLOSE_CONNECTION = "01"
-    WAIT_FOR_NEXT    = "02"
-    LAST_PACKAGE     = "03"
-    ACKNOWLEDGE      = "04"
-    RETRANSMITED     = "05"
+    START_CONNECTION  = "00"
+    CLOSE_CONNECTION  = "01"
+    WAIT_FOR_NEXT     = "02"
+    LAST_PACKET       = "03"
+    ACKNOWLEDGE       = "04"
+    WAIT_FOR_NEXT_ACK = "05"
+    WAIT_FOR_NEXT_RET = "06"
+    LAST_PACKET_ACK   = "07"
+    LAST_PACKET_RET   = "08"
 
+MAX_DATA_LENGTH = 50
 
 # SEQ number  4 bytes 0:4
 # ACK number  4 bytes 4:8
@@ -41,9 +45,9 @@ class Encoder:
         receivedChecksum = messageInBytes[12 : 14]
         calculatedChecksum = str(hex(abs(hash(messageInBytes[0 : 12])) % (16 ** 16)))[2:4]
 
-        print("Received checksum:", receivedChecksum)
-        print("Calculated checksum:", calculatedChecksum)
-        #if receivedChecksum != calculatedChecksum:
+        #print("Received checksum:", receivedChecksum)
+        #print("Calculated checksum:", calculatedChecksum)
+        #if receivedChecksum != calculatedChecksum: # TODO Fix this
         #    return {}
 
         size = int(messageInBytes[8 : 10], 16)
