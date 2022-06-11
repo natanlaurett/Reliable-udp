@@ -5,6 +5,7 @@ SERVER_IP = "127.0.0.1"
 SERVER_PORT = 1999
 
 UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+UDP_socket.settimeout(1)
 messenger = Messenger()
 
 message = "Lorem ipsum dolor sit amet, consectetur adipisicing elit," + \
