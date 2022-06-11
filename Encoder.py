@@ -12,12 +12,9 @@ class Flags(Enum):
     WAIT_FOR_NEXT     = "02"
     LAST_PACKET       = "03"
     ACKNOWLEDGE       = "04"
-    WAIT_FOR_NEXT_ACK = "05"
-    WAIT_FOR_NEXT_RET = "06"
-    LAST_PACKET_ACK   = "07"
-    LAST_PACKET_RET   = "08"
 
 MAX_DATA_LENGTH = 50
+MAX_PACKET_SIZE = 64
 
 # SEQ number  4 bytes 0:4
 # ACK number  4 bytes 4:8

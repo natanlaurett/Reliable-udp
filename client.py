@@ -15,4 +15,6 @@ message = "Lorem ipsum dolor sit amet, consectetur adipisicing elit," + \
             " dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat" + \
             " non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
 
+messenger.openConnection(UDP_socket, SERVER_IP, SERVER_PORT)
 messenger.sendMessage(message, UDP_socket, SERVER_IP, SERVER_PORT)
+messenger.closeConnection(UDP_socket, SERVER_IP, SERVER_PORT)
