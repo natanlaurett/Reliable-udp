@@ -29,8 +29,6 @@ class Encoder:
         flags       = data[DatagramFields.FLAGS]        
         dataToSend  = data[DatagramFields.DATA]
 
-        print("Size", size)
-
         messageInBytes = seqNumInHex + ackNumInHex + size + flags.value + dataToSend
 
         return messageInBytes
