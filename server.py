@@ -18,7 +18,7 @@ UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 UDP_socket.bind((SERVER_IP, SERVER_PORT))
 
 def main():
-    openConnections = []
+    openConnections = {}
 
     while True:
         clientMessage = messenger.receiveMessage(UDP_socket)
@@ -45,14 +45,11 @@ def main():
             print("Sent server commands to user.") 
 
         if command == SERVER_COMMANDS.LS.value:
-            currentFiles = os.listdir(str(pathlib.Path().resolve()) + "\\files")
+            currentFiles = os.listdir(str(pathlib.Path().resolve()) + "\\serverFiles")
             dataJson = __buildMessageWithPayload__(200, currentFiles)
             __sendToClient__(dataJson, messageJson)
+            print("Sent avaliable files to user.") 
 
-        #if command == SERVER_COMMANDS.DOWNLOAD.value:
-            #TODO
-        #if command == SERVER_COMMANDS.UPLOAD.value:
-            #TODO
         if command == SERVER_COMMANDS.REGISTER.value:
             secrets = {}
             with open('secrets/secrets.json') as json_file:
@@ -63,7 +60,7 @@ def main():
 
             secrets[user] = password
 
-            with open('ecrets/secrets.json', 'w') as outfile:
+            with open('secrets/secrets.json', 'w') as outfile:
                 json.dump(secrets, outfile)
 
             dataJson = __buildMessageWithPayload__(200, "Registering successfull")
@@ -77,14 +74,35 @@ def main():
             user = messageJson[CLIENT_MESSAGE_FIELDS.USER.value]
             password = messageJson[CLIENT_MESSAGE_FIELDS.PASSWORD.value]
 
-            if secrets[user] == password:
-                openConnections[user] = __CONNECTION_STATUS__.REGISTERED
-                dataJson = __buildMessageWithPayload__(200, "Login successfull")
-                __sendToClient__(dataJson, messageJson)
+            try:
+                if secrets[user] == password:
+                    openConnections[user] = __CONNECTION_STATUS__.REGISTERED
+                    dataJson = __buildMessageWithPayload__(200, "Login successfull")
+                    __sendToClient__(dataJson, messageJson)
 
-            else:
+                else:
+                    dataJson = __buildMessageWithPayload__(404, "User not found")
+                    __sendToClient__(dataJson, messageJson)
+            except KeyError as error:
                 dataJson = __buildMessageWithPayload__(404, "User not found")
                 __sendToClient__(dataJson, messageJson)
+
+        if command == SERVER_COMMANDS.DOWNLOAD.value:
+            currentFiles = os.listdir(str(pathlib.Path().resolve()) + "\\serverFiles")
+            fileName = messageJson[CLIENT_MESSAGE_FIELDS.ARGUMENTS.value]
+
+            if fileName in currentFiles:
+                with open('serverFiles/' + fileName, 'r') as file:
+                    fileData = file.read()
+
+                dataJson = __buildMessageWithPayload__(200, fileData)
+                __sendToClient__(dataJson, messageJson)
+            else:
+                dataJson = __buildMessageWithPayload__(404, "File not found")
+                __sendToClient__(dataJson, messageJson)
+
+        #if command == SERVER_COMMANDS.UPLOAD.value:
+            #TODO
 
 def __decodeJson__(jsonStr):
     try:
