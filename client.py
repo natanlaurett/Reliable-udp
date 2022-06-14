@@ -1,5 +1,7 @@
 import socket
 import json
+import os
+import pathlib
 from Messenger import Messenger
 from commons import SERVER_COMMANDS, CLIENT_MESSAGE_FIELDS, SERVER_MESSAGE_FIELDS
 
@@ -95,6 +97,31 @@ def main():
             else:
                 print("Server returned", status)
                 print("Message:", payload)
+            print("\n")
+        
+        if (userInput == "upload"):
+            data[CLIENT_MESSAGE_FIELDS.COMMAND.value] = SERVER_COMMANDS.UPLOAD.value
+            fileName = input("What file would you like to upload? ")
+
+            currentFiles = os.listdir(str(pathlib.Path().resolve()) + "\\clientFiles")
+
+            if fileName in currentFiles:
+                with open('clientFiles/' + fileName, 'r') as file:
+                    fileData = file.read()
+
+                arguments = {}
+                arguments["file_name"] = fileName
+                arguments["file_content"] = fileData
+                data[CLIENT_MESSAGE_FIELDS.ARGUMENTS.value] = arguments
+
+                messageJson = __sendToServerAndWaitForResponse__(data)    
+                status = messageJson[SERVER_MESSAGE_FIELDS.STATUS.value]
+                payload = messageJson[SERVER_MESSAGE_FIELDS.PAYLOAD.value]
+                print("Server returned", status)
+                print("Message:", payload)
+            else:
+                print("This file does not exist. Try another.")
+
             print("\n")  
 
 def __decodeJson__(jsonStr):

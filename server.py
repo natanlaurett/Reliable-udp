@@ -26,7 +26,6 @@ def main():
             continue
 
         messageJson = __decodeJson__(clientMessage)
-        print("Decoded user message:", messageJson)
 
         command = messageJson[CLIENT_MESSAGE_FIELDS.COMMAND.value]
 
@@ -73,10 +72,11 @@ def main():
             
             user = messageJson[CLIENT_MESSAGE_FIELDS.USER.value]
             password = messageJson[CLIENT_MESSAGE_FIELDS.PASSWORD.value]
+            clientAddress = messageJson[CLIENT_MESSAGE_FIELDS.CLIENT_ADDRESS.value]
 
             try:
                 if secrets[user] == password:
-                    openConnections[user] = __CONNECTION_STATUS__.REGISTERED
+                    openConnections[clientAddress[0] + '/' + str(clientAddress[1])] = __CONNECTION_STATUS__.REGISTERED
                     dataJson = __buildMessageWithPayload__(200, "Login successfull")
                     __sendToClient__(dataJson, messageJson)
 
@@ -101,8 +101,23 @@ def main():
                 dataJson = __buildMessageWithPayload__(404, "File not found")
                 __sendToClient__(dataJson, messageJson)
 
-        #if command == SERVER_COMMANDS.UPLOAD.value:
-            #TODO
+        if command == SERVER_COMMANDS.UPLOAD.value:
+            clientAddress = messageJson[CLIENT_MESSAGE_FIELDS.CLIENT_ADDRESS.value]
+            arguments = messageJson[CLIENT_MESSAGE_FIELDS.ARGUMENTS.value]
+            fileName = arguments["file_name"]
+            fileContent = arguments["file_content"]
+
+            try:
+                permission = openConnections[clientAddress[0] + '/' + str(clientAddress[1])]
+                if permission == __CONNECTION_STATUS__.REGISTERED:
+                    with open('serverFiles/' + fileName, 'w') as text_file:
+                        text_file.write(fileContent)
+                dataJson = __buildMessageWithPayload__(200, "File saved successfully.")
+                __sendToClient__(dataJson, messageJson)
+                
+            except KeyError as error:
+                dataJson = __buildMessageWithPayload__(403, "You have no permission to make uploads. Login first.")
+                __sendToClient__(dataJson, messageJson)
 
 def __decodeJson__(jsonStr):
     try:
