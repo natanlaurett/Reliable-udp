@@ -13,18 +13,22 @@ class __CONNECTION_STATUS__(Enum):
 SERVER_IP = "127.0.0.1"
 SERVER_PORT = 1999
 
-def main():
-    UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    UDP_socket.bind((SERVER_IP, SERVER_PORT))
+messenger = Messenger()
+UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+UDP_socket.bind((SERVER_IP, SERVER_PORT))
 
-    messenger = Messenger()
+def main():
     openConnections = []
 
     while True:
         clientMessage = messenger.receiveMessage(UDP_socket)
-        messageJson = __decodeJson__(clientMessage)
+        if not clientMessage:
+            continue
 
-        command = messageJson[CLIENT_MESSAGE_FIELDS.COMMAND]
+        messageJson = __decodeJson__(clientMessage)
+        print("Decoded user message:", messageJson)
+
+        command = messageJson[CLIENT_MESSAGE_FIELDS.COMMAND.value]
 
         if command == SERVER_COMMANDS.HELP.value:
             availableCommands = {
@@ -38,20 +42,49 @@ def main():
 
             dataJson = __buildMessageWithPayload__(200, availableCommands)
             __sendToClient__(dataJson, messageJson)
+            print("Sent server commands to user.") 
 
         if command == SERVER_COMMANDS.LS.value:
             currentFiles = os.listdir(str(pathlib.Path().resolve()) + "\\files")
             dataJson = __buildMessageWithPayload__(200, currentFiles)
             __sendToClient__(dataJson, messageJson)
 
-        if command == SERVER_COMMANDS.DOWNLOAD.value:
+        #if command == SERVER_COMMANDS.DOWNLOAD.value:
             #TODO
-        if command == SERVER_COMMANDS.UPLOAD.value:
+        #if command == SERVER_COMMANDS.UPLOAD.value:
             #TODO
         if command == SERVER_COMMANDS.REGISTER.value:
-            #TODO
+            secrets = {}
+            with open('secrets/secrets.json') as json_file:
+                secrets = json.load(json_file) 
+            
+            user = messageJson[CLIENT_MESSAGE_FIELDS.USER.value]
+            password = messageJson[CLIENT_MESSAGE_FIELDS.PASSWORD.value]
+
+            secrets[user] = password
+
+            with open('ecrets/secrets.json', 'w') as outfile:
+                json.dump(secrets, outfile)
+
+            dataJson = __buildMessageWithPayload__(200, "Registering successfull")
+            __sendToClient__(dataJson, messageJson)
+
         if command == SERVER_COMMANDS.LOGIN.value:
-            #TODO
+            secrets = {}
+            with open('secrets/secrets.json') as json_file:
+                secrets = json.load(json_file) 
+            
+            user = messageJson[CLIENT_MESSAGE_FIELDS.USER.value]
+            password = messageJson[CLIENT_MESSAGE_FIELDS.PASSWORD.value]
+
+            if secrets[user] == password:
+                openConnections[user] = __CONNECTION_STATUS__.REGISTERED
+                dataJson = __buildMessageWithPayload__(200, "Login successfull")
+                __sendToClient__(dataJson, messageJson)
+
+            else:
+                dataJson = __buildMessageWithPayload__(404, "User not found")
+                __sendToClient__(dataJson, messageJson)
 
 def __decodeJson__(jsonStr):
     try:
@@ -63,13 +96,13 @@ def __decodeJson__(jsonStr):
 
 def __buildMessageWithPayload__(status, payload):
     data = {}
-    data[SERVER_MESSAGE_FIELDS.STATUS] = status
-    data[SERVER_MESSAGE_FIELDS.PAYLOAD] = payload
+    data[SERVER_MESSAGE_FIELDS.STATUS.value] = status
+    data[SERVER_MESSAGE_FIELDS.PAYLOAD.value] = payload
 
     return json.dumps(data)
 
 def __sendToClient__(message, messageJson):
-    clientAddress = messageJson[CLIENT_MESSAGE_FIELDS.CLIENT_ADDRESS]
+    clientAddress = messageJson[CLIENT_MESSAGE_FIELDS.CLIENT_ADDRESS.value]
     clientIp = clientAddress[0]
     clientPort = clientAddress[1]
 

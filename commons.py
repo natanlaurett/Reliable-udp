@@ -17,4 +17,4 @@ class CLIENT_MESSAGE_FIELDS(Enum):
 
 class SERVER_MESSAGE_FIELDS(Enum):
     STATUS            = "STATUS"
-    PAYLOAD           = "PAYLOAD" #Optional
+    PAYLOAD           = "PAYLOAD"
