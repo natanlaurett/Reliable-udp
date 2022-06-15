@@ -138,18 +138,18 @@ class Messenger():
         decodedData = currDatagram[DatagramFields.DATA]
 
         packetToAck = currDatagram[DatagramFields.SEQNUM]
-        ackDatagram[DatagramFields.ACKNUM] = packetToAck
-
-        if ENABLE_PACKET_LOSS: #simulate packet loss
-                randNumber = random.randint(1, 100)
-                if randNumber <= PACKET_LOSS_RATE:
-                    print("Ack lost!", ackDatagram[DatagramFields.ACKNUM])
-                    return {}
 
         ackDatagram = {}
         ackDatagram[DatagramFields.SEQNUM] = 0
+        ackDatagram[DatagramFields.ACKNUM] = packetToAck
         ackDatagram[DatagramFields.FLAGS] = Flags.ACKNOWLEDGE
         ackDatagram[DatagramFields.DATA] = ""
+
+        if ENABLE_PACKET_LOSS: #simulate packet loss
+            randNumber = random.randint(1, 100)
+            if randNumber <= PACKET_LOSS_RATE:
+                print("Ack lost!", ackDatagram[DatagramFields.ACKNUM])
+                return {}
 
         self.lastAck[clientAddress] = packetToAck
         messageInBytes = self.encoder.encodeMessage(ackDatagram)
