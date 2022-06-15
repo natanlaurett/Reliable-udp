@@ -6,7 +6,7 @@ import time
 
 ENABLE_PACKET_LOSS = True
 PACKET_LOSS_RATE = 5 # 5%
-WINDOW_LEN = 5
+WINDOW_LEN = 10
 
 class Messenger():
     encoder = Encoder()
@@ -131,11 +131,12 @@ class Messenger():
         return [message[i : min(i + MAX_DATA_LENGTH, len(message))] for i in range(0, len(message), MAX_DATA_LENGTH)]
 
     def __receiveDataAcking__(self, msgDatagram, clientAddress, udpSocket):
-        if msgDatagram[DatagramFields.SEQNUM] <= self.lastAck[clientAddress]:
+        if msgDatagram[DatagramFields.SEQNUM] != self.lastAck[clientAddress] + 1:
             return {}
 
         currDatagram = msgDatagram
         decodedData = currDatagram[DatagramFields.DATA]
+        self.buffer[clientAddress] = self.buffer[clientAddress] + decodedData
 
         packetToAck = currDatagram[DatagramFields.SEQNUM]
 
@@ -154,8 +155,6 @@ class Messenger():
         self.lastAck[clientAddress] = packetToAck
         messageInBytes = self.encoder.encodeMessage(ackDatagram)
         udpSocket.sendto(messageInBytes.encode(), clientAddress)
-        
-        self.buffer[clientAddress] = self.buffer[clientAddress] + decodedData
 
         if currDatagram[DatagramFields.FLAGS] == Flags.LAST_PACKET.value:
             bufferData = self.buffer[clientAddress]
