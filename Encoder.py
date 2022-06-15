@@ -13,8 +13,8 @@ class Flags(Enum):
     LAST_PACKET       = "03"
     ACKNOWLEDGE       = "04"
 
-MAX_DATA_LENGTH = 242
-MAX_PACKET_SIZE = 256
+MAX_DATA_LENGTH = 1010
+MAX_PACKET_SIZE = 1024
 
 # SEQ number  4 bytes 0:4
 # ACK number  4 bytes 4:8

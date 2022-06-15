@@ -2,6 +2,7 @@ from Encoder import Encoder, DatagramFields, Flags, MAX_DATA_LENGTH, MAX_PACKET_
 from datetime import datetime, timedelta
 import random
 import socket
+import time
 
 ENABLE_PACKET_LOSS = True
 PACKET_LOSS_RATE = 5 # 5%
@@ -14,6 +15,7 @@ class Messenger():
     waitingForAck = {}     # {ClientAddress, [SeqNum1, SeqNum2, ...]}
     lastAck = {}           # {ClientAddress, SeqNum}
     buffer = {}
+    ackTimes = {}
 
     def openConnection(self, udpSocket, ip, port):
         data = {}
@@ -42,6 +44,10 @@ class Messenger():
 
         windowStart = 0
         while (windowStart < len(splittedMessage)):
+            if windowStart == self.lastAck:
+                print("Warning: we suspect a bug is causing this behavior.")
+                break
+            
             self.__sendChunks__(splittedMessage, windowStart, udpSocket, ip, port)
 
             while len(self.waitingForAck[(ip, port)]) > 0:
@@ -56,6 +62,11 @@ class Messenger():
                     self.__sendChunks__(splittedMessage, firstLostPacket - 1, udpSocket, ip, port)
         
             windowStart += WINDOW_LEN
+    
+        #allRTTS = [self.ackTimes[key] for key in self.ackTimes]
+        #avgRTT = sum(allRTTS) / len(allRTTS)
+        #print("Average RTT:", avgRTT)
+        #self.ackTimes = {}
 
     def __sendChunks__(self, splittedMessage, windowStart, udpSocket, ip, port):
         self.waitingForAck[(ip, port)] = []
@@ -78,6 +89,7 @@ class Messenger():
             data[DatagramFields.DATA] = splittedMessage[i]
 
             messageInBytes = self.encoder.encodeMessage(data)
+            #self.ackTimes[seqNum] = time.time()
             udpSocket.sendto(messageInBytes.encode(), (ip, port))
 
 
@@ -104,6 +116,7 @@ class Messenger():
 
             if msgDatagram[DatagramFields.FLAGS] == Flags.ACKNOWLEDGE.value:
                 self.waitingForAck[clientAddress] = [i for i in self.waitingForAck[clientAddress] if i > msgDatagram[DatagramFields.ACKNUM]]
+                #self.ackTimes[msgDatagram[DatagramFields.ACKNUM]] = time.time() - self.ackTimes[msgDatagram[DatagramFields.ACKNUM]]
                 print("Received ack for", msgDatagram[DatagramFields.ACKNUM])
                 return {}
 
@@ -112,29 +125,13 @@ class Messenger():
                 return self.__receiveDataAcking__(msgDatagram, clientAddress, udpSocket)
 
         except socket.error as udpSocketerror:
-            #print("Socket timed out")
             return {}
     
     def __splitMessage__(self, message):
         return [message[i : min(i + MAX_DATA_LENGTH, len(message))] for i in range(0, len(message), MAX_DATA_LENGTH)]
 
     def __receiveDataAcking__(self, msgDatagram, clientAddress, udpSocket):
-        ackDatagram = {}
-        ackDatagram[DatagramFields.SEQNUM] = 0
-        ackDatagram[DatagramFields.FLAGS] = Flags.ACKNOWLEDGE
-        ackDatagram[DatagramFields.DATA] = ""
-
         if msgDatagram[DatagramFields.SEQNUM] <= self.lastAck[clientAddress]:
-            ackDatagram[DatagramFields.ACKNUM] = self.lastAck[clientAddress]
-
-            if ENABLE_PACKET_LOSS: #simulate packet loss
-                randNumber = random.randint(1, 100)
-                if randNumber <= PACKET_LOSS_RATE:
-                    print("Ack lost!", ackDatagram[DatagramFields.ACKNUM])
-                    return {}
-        
-            messageInBytes = self.encoder.encodeMessage(ackDatagram)
-            udpSocket.sendto(messageInBytes.encode(), clientAddress)
             return {}
 
         currDatagram = msgDatagram
@@ -148,7 +145,12 @@ class Messenger():
                 if randNumber <= PACKET_LOSS_RATE:
                     print("Ack lost!", ackDatagram[DatagramFields.ACKNUM])
                     return {}
-        
+
+        ackDatagram = {}
+        ackDatagram[DatagramFields.SEQNUM] = 0
+        ackDatagram[DatagramFields.FLAGS] = Flags.ACKNOWLEDGE
+        ackDatagram[DatagramFields.DATA] = ""
+
         self.lastAck[clientAddress] = packetToAck
         messageInBytes = self.encoder.encodeMessage(ackDatagram)
         udpSocket.sendto(messageInBytes.encode(), clientAddress)

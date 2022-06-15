@@ -2,6 +2,7 @@ import os
 import pathlib
 import socket
 import json
+import time
 from enum import Enum
 from Messenger import Messenger
 from commons import SERVER_COMMANDS, CLIENT_MESSAGE_FIELDS, SERVER_MESSAGE_FIELDS
@@ -97,7 +98,10 @@ def main():
                     fileData = file.read()
 
                 dataJson = __buildMessageWithPayload__(200, fileData)
+                start = time.time()
                 __sendToClient__(dataJson, messageJson)
+                end = time.time()
+                print("Finished sending file to client. Elapsed time:", end - start)
             else:
                 dataJson = __buildMessageWithPayload__(404, "File not found")
                 __sendToClient__(dataJson, messageJson)
