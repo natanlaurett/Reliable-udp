@@ -15,6 +15,7 @@ SERVER_PORT = 1999
 
 messenger = Messenger()
 UDP_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+UDP_socket.settimeout(1)
 UDP_socket.bind((SERVER_IP, SERVER_PORT))
 
 def main():

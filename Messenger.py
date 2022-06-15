@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 import random
 import socket
 
-ENABLE_PACKET_LOSS = False
+ENABLE_PACKET_LOSS = True
 PACKET_LOSS_RATE = 5 # 5%
 WINDOW_LEN = 5
 
@@ -13,6 +13,7 @@ class Messenger():
     activeConnections = {} # {ClientAddress, boolean}
     waitingForAck = {}     # {ClientAddress, [SeqNum1, SeqNum2, ...]}
     lastAck = {}           # {ClientAddress, SeqNum}
+    buffer = {}
 
     def openConnection(self, udpSocket, ip, port):
         data = {}
@@ -37,6 +38,7 @@ class Messenger():
 
     def sendMessage(self, message, udpSocket, ip, port):
         splittedMessage = self.__splitMessage__(message)
+        print(str(len(splittedMessage)) + " packets to send")
 
         windowStart = 0
         while (windowStart < len(splittedMessage)):
@@ -46,11 +48,11 @@ class Messenger():
                 timeout = datetime.now() + timedelta(seconds = 5)
                 while datetime.now() < timeout and len(self.waitingForAck[(ip, port)]) > 0: 
                     self.receiveMessage(udpSocket)
-                    #print("Waiting for ack:", self.waitingForAck[(ip, port)])
+                    print("Waiting for ack:", self.waitingForAck[(ip, port)])
                 
                 if len(self.waitingForAck[(ip, port)]) > 0:
                     firstLostPacket = min(self.waitingForAck[(ip, port)])
-                    #print("Timeout for ack exceeded. Beggining retransmition from:", firstLostPacket)
+                    print("Timeout for ack exceeded. Beggining retransmition from:", firstLostPacket)
                     self.__sendChunks__(splittedMessage, firstLostPacket - 1, udpSocket, ip, port)
         
             windowStart += WINDOW_LEN
@@ -66,7 +68,7 @@ class Messenger():
             if ENABLE_PACKET_LOSS: #simulate packet loss
                 randNumber = random.randint(1, 100)
                 if randNumber <= PACKET_LOSS_RATE and i < len(splittedMessage) - 1: # Second condition must be dropped
-                    #print("Packet lost!", seqNum)
+                    print("Packet lost!", seqNum)
                     continue
 
             data = {}
@@ -83,24 +85,26 @@ class Messenger():
         try:
             msg, clientAddress = udpSocket.recvfrom(MAX_PACKET_SIZE)
             msgDatagram = self.encoder.decodeMessage(msg.decode())
-            
+
             if msgDatagram[DatagramFields.FLAGS] == Flags.START_CONNECTION.value:
-                #print("Oppening connection with:", clientAddress)
+                print("Oppening connection with:", clientAddress)
                 self.activeConnections[clientAddress] = True
                 self.waitingForAck[clientAddress] = []
                 self.lastAck[clientAddress] = 0
+                self.buffer[clientAddress] = ""
                 return {}
 
             if msgDatagram[DatagramFields.FLAGS] == Flags.CLOSE_CONNECTION.value:
-                #print("Closing connection with:", clientAddress)
+                print("Closing connection with:", clientAddress)
                 self.activeConnections[clientAddress] = False
                 #del self.waitingForAck[clientAddress]
                 #del self.lastAck[clientAddress]
+                self.buffer[clientAddress] = ""
                 return {}
 
             if msgDatagram[DatagramFields.FLAGS] == Flags.ACKNOWLEDGE.value:
                 self.waitingForAck[clientAddress] = [i for i in self.waitingForAck[clientAddress] if i > msgDatagram[DatagramFields.ACKNUM]]
-                #print("Received ack for", msgDatagram[DatagramFields.ACKNUM])
+                print("Received ack for", msgDatagram[DatagramFields.ACKNUM])
                 return {}
 
             if (self.activeConnections[clientAddress] and
@@ -115,56 +119,45 @@ class Messenger():
         return [message[i : min(i + MAX_DATA_LENGTH, len(message))] for i in range(0, len(message), MAX_DATA_LENGTH)]
 
     def __receiveDataAcking__(self, msgDatagram, clientAddress, udpSocket):
-        if msgDatagram[DatagramFields.SEQNUM] != self.lastAck[clientAddress] + 1:
-            return {}
-
-        currDatagram = msgDatagram
-        decodedData = ""
-
         ackDatagram = {}
         ackDatagram[DatagramFields.SEQNUM] = 0
         ackDatagram[DatagramFields.FLAGS] = Flags.ACKNOWLEDGE
         ackDatagram[DatagramFields.DATA] = ""
 
-        while (currDatagram[DatagramFields.FLAGS] != Flags.LAST_PACKET.value):
-            packetToAck = currDatagram[DatagramFields.SEQNUM]
-            self.lastAck[clientAddress] = packetToAck
-            
-            decodedData += currDatagram[DatagramFields.DATA]
-
-            #print("Sending ack of packet", packetToAck, "to ", clientAddress)
-            ackDatagram[DatagramFields.ACKNUM] = packetToAck
+        if msgDatagram[DatagramFields.SEQNUM] <= self.lastAck[clientAddress]:
+            ackDatagram[DatagramFields.ACKNUM] = self.lastAck[clientAddress]
 
             if ENABLE_PACKET_LOSS: #simulate packet loss
                 randNumber = random.randint(1, 100)
                 if randNumber <= PACKET_LOSS_RATE:
-                    #print("Ack lost!", ackDatagram[DatagramFields.ACKNUM])
-                    continue
-            
+                    print("Ack lost!", ackDatagram[DatagramFields.ACKNUM])
+                    return {}
+        
             messageInBytes = self.encoder.encodeMessage(ackDatagram)
             udpSocket.sendto(messageInBytes.encode(), clientAddress)
-            
-            msg, newMsgAddress = udpSocket.recvfrom(MAX_PACKET_SIZE)
-            currDatagram = self.encoder.decodeMessage(msg.decode())
-            while (newMsgAddress != clientAddress or 
-                   currDatagram[DatagramFields.SEQNUM] != self.lastAck[clientAddress] + 1):
-                msg, newMsgAddress = udpSocket.recvfrom(MAX_PACKET_SIZE)
-                currDatagram = self.encoder.decodeMessage(msg.decode())
+            return {}
 
+        currDatagram = msgDatagram
+        decodedData = currDatagram[DatagramFields.DATA]
 
-        decodedData += currDatagram[DatagramFields.DATA]
-
-        #print("Sending ack of packet", currDatagram[DatagramFields.SEQNUM], "to ", clientAddress)
-        ackDatagram[DatagramFields.ACKNUM] = currDatagram[DatagramFields.SEQNUM]
+        packetToAck = currDatagram[DatagramFields.SEQNUM]
+        ackDatagram[DatagramFields.ACKNUM] = packetToAck
 
         if ENABLE_PACKET_LOSS: #simulate packet loss
-            randNumber = random.randint(1, 100)
-            if randNumber <= PACKET_LOSS_RATE:
-                #print("Ack lost!", ackDatagram[DatagramFields.ACKNUM])
-                return decodedData
-
+                randNumber = random.randint(1, 100)
+                if randNumber <= PACKET_LOSS_RATE:
+                    print("Ack lost!", ackDatagram[DatagramFields.ACKNUM])
+                    return {}
+        
+        self.lastAck[clientAddress] = packetToAck
         messageInBytes = self.encoder.encodeMessage(ackDatagram)
         udpSocket.sendto(messageInBytes.encode(), clientAddress)
+        
+        self.buffer[clientAddress] = self.buffer[clientAddress] + decodedData
 
-        self.lastAck[clientAddress] = 0
-        return decodedData
+        if currDatagram[DatagramFields.FLAGS] == Flags.LAST_PACKET.value:
+            bufferData = self.buffer[clientAddress]
+            self.buffer[clientAddress] = ""
+            self.lastAck[clientAddress] = 0
+            return bufferData
+        return {}
